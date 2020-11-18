@@ -1,0 +1,29 @@
+---
+# Ansible playbook to install PHP and apache2, 
+# git pull content and start webserver
+- name: Install and start apache with content from git
+  hosts: localhost
+  become: true
+
+  tasks:
+
+  - name: Update apt cache
+    apt:
+      update_cache: true
+
+  - name: install PHP and apache2
+    apt:
+      name: "{{ item }}"
+    become: true
+    with_items:
+      - php
+      - apache2
+
+  - name: Copy the code from the repository
+    git: repo=https://github.com/brikis98/php-app.git dest=/var/www/html/app
+
+  - name: Start apache
+    service:
+      name: apache2
+      state: started
+      enabled: true
