@@ -2,26 +2,37 @@ provider "aws" {
     region = "us-west-2"
 }
 
-variable "server_port" {
-    description = "The port the instance listens for HTTP requests on"
-    type = number
+terraform {
+    backend "s3" {
+        bucket          = "kleinsystems-tuar-state"
+        key             = "stage/services/webserver-cluster/terraform.tfstate"
+        region          = "us-west-2"
+
+        dynamodb_table  = "terraform-up-and-running-locks"
+        encrypt         = true
+    }
 }
 
 resource "aws_launch_configuration" "example" {
-    image_id = "ami-0ac73f33a1888c64a"
-    instance_type = "t2.micro"
+    image_id        = "ami-0ac73f33a1888c64a"
+    instance_type   = "t2.micro"
     security_groups = [aws_security_group.instance.id]
-
-    user_data = <<-EOF
-    #!/bin/bash
-    echo "Hello, World" > index.html
-    nohup busybox httpd -f -p ${var.server_port} &
-    EOF
+    user_data       = data.template_file.user_data.rendered 
 
     # Required when using a launch configuration with an auto scaling group.
     # https://www.terraform.io/docs/providers/aws/r/launch_configuration.html
     lifecycle {
         create_before_destroy = true
+    }
+}
+
+data "template_file" "user_data" {
+    template = file("user-data.sh")
+
+    vars = {
+        server_port = var.server_port
+        db_address  = data.terraform_remote_state.db.outputs.address
+        db_port     = data.terraform_remote_state.db.outputs.port
     }
 }
 
@@ -51,14 +62,6 @@ resource "aws_security_group" "instance" {
         protocol    = "tcp"
         cidr_blocks = ["0.0.0.0/0"]
     }
-}
-
-data "aws_vpc" "default" {
-    default = true
-}
-
-data "aws_subnet_ids" "default" {
-    vpc_id  = data.aws_vpc.default.id
 }
 
 resource "aws_lb" "example" {
@@ -135,7 +138,20 @@ resource "aws_security_group" "alb" {
     }
 }
 
-output "alb_dns_name" {
-    value = aws_lb.example.dns_name
-    description = "The domain name of the load balancer"
+data "terraform_remote_state" "db" {
+    backend = "s3"
+
+    config = {
+        bucket  = "kleinsystems-tuar-state"
+        key     = "stage/data-stores/mysql/terraform.tfstate"
+        region  = "us-west-2"
+    }
+}
+
+data "aws_vpc" "default" {
+    default = true
+}
+
+data "aws_subnet_ids" "default" {
+    vpc_id  = data.aws_vpc.default.id
 }

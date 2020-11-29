@@ -1,7 +1,7 @@
 terraform {
     backend "s3" {
         bucket          = "kleinsystems-tuar-state"
-        key             = "workspaces-example/s3/terraform.tfstate"
+        key             = "workspaces-example/terraform.tfstate"
         region          = "us-west-2"
 
         dynamodb_table  = "terraform-up-and-running-locks"
